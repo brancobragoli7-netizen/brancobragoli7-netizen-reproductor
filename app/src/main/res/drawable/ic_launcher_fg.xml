@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cinco barras blancas rectas sobre negro (zona segura 66x66 dentro de 108x108) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M35,58h4v12h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M43,44h4v26h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M51,36h4v34h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M59,48h4v22h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M67,54h4v16h-4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M33,73h40v1h-40z" />
+</vector>
