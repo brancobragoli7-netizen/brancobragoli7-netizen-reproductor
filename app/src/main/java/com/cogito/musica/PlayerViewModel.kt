@@ -43,6 +43,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(PlayerUi())
     val ui = _ui.asStateFlow()
 
+    /** Carpetas propias del usuario. */
+    val folderStore = FolderStore(app, viewModelScope)
+
     private var controller: MediaController? = null
 
     private val future = MediaController.Builder(

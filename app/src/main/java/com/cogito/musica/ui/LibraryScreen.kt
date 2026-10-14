@@ -3,7 +3,11 @@ package com.cogito.musica.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +37,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cogito.musica.AudioViz
+import com.cogito.musica.Folder
+import com.cogito.musica.FolderStore
 import com.cogito.musica.PlayerUi
 import com.cogito.musica.Song
 import com.cogito.musica.normalize
 
-private enum class Tab(val label: String) { SONGS("Canciones"), ALBUMS("Álbumes"), ARTISTS("Artistas") }
+private enum class Tab(val label: String) { SONGS("Canciones"), FOLDERS("Carpetas"), ALBUMS("Álbumes"), ARTISTS("Artistas") }
 
 private data class Group(val title: String, val subtitle: String, val songs: List<Song>)
 
@@ -45,6 +51,8 @@ private data class Group(val title: String, val subtitle: String, val songs: Lis
 fun LibraryScreen(
     songs: List<Song>,
     loaded: Boolean,
+    folders: List<Folder>,
+    store: FolderStore,
     ui: PlayerUi,
     viz: AudioViz,
     frame: State<Long>,
@@ -58,7 +66,28 @@ fun LibraryScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var openGroup by remember { mutableStateOf<Group?>(null) }
 
+    var openFolderId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pickerFor by rememberSaveable { mutableStateOf<String?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var addToFolder by remember { mutableStateOf<Song?>(null) }
+    var newFolderFor by remember { mutableStateOf<Song?>(null) }
+
     BackHandler(enabled = openGroup != null) { openGroup = null }
+
+    val byId = remember(songs) { songs.associateBy { it.id } }
+    val openFolder = folders.find { it.id == openFolderId }
+    val pickerFolder = folders.find { it.id == pickerFor }
+
+    // Elegir canciones para una carpeta: ocupa toda la pantalla
+    if (pickerFolder != null) {
+        SongPicker(
+            folder = pickerFolder,
+            songs = songs,
+            onDone = { ids -> store.addSongs(pickerFolder.id, ids); pickerFor = null },
+            onCancel = { pickerFor = null },
+        )
+        return
+    }
 
     val q = normalize(query.trim())
     val filtered = remember(songs, q) { if (q.isEmpty()) songs else songs.filter { q in it.searchKey } }
@@ -75,6 +104,22 @@ fun LibraryScreen(
     }
 
     Column(Modifier.fillMaxSize().background(Black)) {
+      if (openFolder != null) {
+        Box(Modifier.weight(1f)) {
+            FolderDetail(
+                folder = openFolder,
+                store = store,
+                allSongs = byId,
+                ui = ui,
+                viz = viz,
+                frame = frame,
+                onBack = { openFolderId = null },
+                onPlay = onPlay,
+                onShuffle = onShuffle,
+                onAddSongs = { pickerFor = openFolder.id },
+            )
+        }
+      } else {
         Column(Modifier.padding(horizontal = 24.dp)) {
             Spacer(Modifier.height(20.dp))
             Row(verticalAlignment = Alignment.Bottom) {
@@ -85,7 +130,10 @@ fun LibraryScreen(
             Spacer(Modifier.height(16.dp))
             SearchField(query) { query = it; openGroup = null }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
                 Tab.entries.forEach { t ->
                     TextTab(t.label, active = tab == t) { tab = t; openGroup = null }
                 }
@@ -115,7 +163,7 @@ fun LibraryScreen(
                                 Spacer(Modifier.height(8.dp))
                             }
                         }
-                        songItems(g.songs, ui, viz, frame, onPlay)
+                        songItems(g.songs, ui, viz, frame, onPlay) { addToFolder = it }
                     }
                 }
                 tab == Tab.SONGS -> LazyColumn(Modifier.fillMaxSize().padding(horizontal = 24.dp), state = listState) {
@@ -125,8 +173,15 @@ fun LibraryScreen(
                         }
                     }
                     if (filtered.isEmpty()) item { T("Sin resultados.", 16.sp, Dim, italic = true) }
-                    songItems(filtered, ui, viz, frame, onPlay)
+                    songItems(filtered, ui, viz, frame, onPlay) { addToFolder = it }
                 }
+                tab == Tab.FOLDERS -> FolderList(
+                    folders = folders,
+                    store = store,
+                    query = query,
+                    onOpen = { openFolderId = it },
+                    onCreate = { creating = true },
+                )
                 else -> {
                     val groups = if (tab == Tab.ALBUMS) albums else artists
                     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
@@ -145,23 +200,66 @@ fun LibraryScreen(
             }
         }
 
+      }
+
         if (ui.now != null) {
             MiniPlayer(ui, viz, frame, onToggle, onNext, onExpand)
         }
     }
+
+    if (creating) {
+        NameDialog(
+            title = "Nueva carpeta",
+            initial = "",
+            confirm = "Crear",
+            onConfirm = { name ->
+                creating = false
+                openFolderId = store.create(name)
+            },
+            onDismiss = { creating = false },
+        )
+    }
+    addToFolder?.let { song ->
+        ChoiceDialog(
+            title = "Agregar «${song.title}» a…",
+            options = listOf("+ Nueva carpeta") + folders.map { f ->
+                if (song.id in f.songIds) "${f.name}  (ya está)" else f.name
+            },
+            onPick = { i ->
+                addToFolder = null
+                if (i == 0) newFolderFor = song
+                else store.addSongs(folders[i - 1].id, listOf(song.id))
+            },
+            onDismiss = { addToFolder = null },
+        )
+    }
+    newFolderFor?.let { song ->
+        NameDialog(
+            title = "Nueva carpeta",
+            initial = "",
+            confirm = "Crear",
+            onConfirm = { name -> store.create(name, listOf(song.id)); newFolderFor = null },
+            onDismiss = { newFolderFor = null },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 private fun androidx.compose.foundation.lazy.LazyListScope.songItems(
     list: List<Song>,
     ui: PlayerUi,
     viz: AudioViz,
     frame: State<Long>,
     onPlay: (List<Song>, Int) -> Unit,
+    onLongPress: (Song) -> Unit,
 ) {
     itemsIndexed(list, key = { _, s -> s.id }) { i, song ->
         val current = ui.now?.id == song.id.toString()
         Row(
-            Modifier.fillMaxWidth().clickable { onPlay(list, i) }.padding(vertical = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(onLongClick = { onLongPress(song) }) { onPlay(list, i) }
+                .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.width(38.dp)) {

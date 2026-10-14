@@ -12,8 +12,8 @@ android {
         applicationId = "com.cogito.musica"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Clave propia incluida en el proyecto: así cada APK nuevo se instala

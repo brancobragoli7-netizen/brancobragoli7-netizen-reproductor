@@ -117,6 +117,7 @@ fun App() {
     val songs by vm.songs.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val ui by vm.ui.collectAsState()
+    val folders by vm.folderStore.folders.collectAsState()
     val sessionId by AudioSessionHolder.id.collectAsState()
 
     val viz = remember { AudioViz() }
@@ -143,6 +144,8 @@ fun App() {
             LibraryScreen(
                 songs = songs,
                 loaded = loaded,
+                folders = folders,
+                store = vm.folderStore,
                 ui = ui,
                 viz = viz,
                 frame = frame,

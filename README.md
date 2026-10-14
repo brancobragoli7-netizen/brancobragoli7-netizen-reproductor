@@ -22,6 +22,12 @@ siguen el ritmo de lo que suena (barras, onda y anillo — tocá la animación p
 Pasá el APK al celular, abrilo y aceptá "instalar apps de origen desconocido".
 Se lo podés mandar igual a un amigo.
 
+## Carpetas
+
+En la pestaña **Carpetas** podés crear carpetas propias, ponerles nombre y foto,
+elegir sus canciones y cambiar el orden con *Editar* (flechas). También podés mantener
+apretada cualquier canción para sumarla a una carpeta.
+
 ## Permisos
 
 - **Música y audio:** para encontrar tus canciones.
