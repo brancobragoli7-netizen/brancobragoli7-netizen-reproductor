@@ -6,10 +6,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,13 +104,17 @@ fun FolderCover(folder: Folder, store: FolderStore, size: Dp, modifier: Modifier
         modifier.size(size).border(1.dp, Faint).background(Black),
         contentAlignment = Alignment.Center,
     ) {
-        if (bmp != null) {
-            Image(bmp, folder.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        } else {
-            T(
-                folder.name.trim().take(1).uppercase(),
-                (size.value * 0.45f).sp, Dim, italic = true,
-            )
+        Crossfade(bmp, animationSpec = tween(450), label = "cover") { b ->
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (b != null) {
+                    Image(b, folder.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    T(
+                        folder.name.trim().take(1).uppercase(),
+                        (size.value * 0.45f).sp, Dim, italic = true,
+                    )
+                }
+            }
         }
     }
 }
@@ -134,8 +147,9 @@ fun FolderList(
             }
         }
         items(shown, key = { it.id }) { f ->
+          Column(Modifier.animateItem()) {
             Row(
-                Modifier.fillMaxWidth().clickable { onOpen(f.id) }.padding(vertical = 12.dp),
+                Modifier.fillMaxWidth().tap { onOpen(f.id) }.padding(vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FolderCover(f, store, 60.dp)
@@ -146,6 +160,7 @@ fun FolderList(
                 }
             }
             Hairline()
+          }
         }
     }
 }
@@ -190,11 +205,11 @@ fun FolderDetail(
         item {
             Column(Modifier.padding(top = 12.dp, bottom = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Label("← Volver", Modifier.clickable(onClick = onBack).padding(vertical = 8.dp), Dim)
+                    Label("← Volver", Modifier.tap(onClick = onBack).padding(vertical = 8.dp), Dim)
                     Spacer(Modifier.weight(1f))
                     Label(
                         if (editing) "Listo" else "Editar",
-                        Modifier.clickable { editing = !editing }.padding(vertical = 8.dp),
+                        Modifier.tap { editing = !editing }.padding(vertical = 8.dp),
                         if (editing) White else Dim,
                     )
                 }
@@ -202,11 +217,11 @@ fun FolderDetail(
                 Row(verticalAlignment = Alignment.Bottom) {
                     FolderCover(
                         folder, store, 128.dp,
-                        Modifier.clickable { if (folder.cover == null) pickPhoto() else photoMenu = true },
+                        Modifier.enter(40).tap { if (folder.cover == null) pickPhoto() else photoMenu = true },
                     )
                     Spacer(Modifier.width(18.dp))
-                    Column(Modifier.weight(1f)) {
-                        T(folder.name, 28.sp, italic = true, maxLines = 3, modifier = Modifier.clickable { renaming = true })
+                    Column(Modifier.weight(1f).enter(120)) {
+                        T(folder.name, 28.sp, italic = true, maxLines = 3, modifier = Modifier.tap { renaming = true })
                         Spacer(Modifier.height(6.dp))
                         T(countLabel(playable.size), 13.sp, Dim)
                         if (totalMs > 0) T(formatLong(totalMs), 13.sp, Faint)
@@ -214,10 +229,10 @@ fun FolderDetail(
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Label("Renombrar", Modifier.clickable { renaming = true }.padding(vertical = 6.dp), Dim)
+                    Label("Renombrar", Modifier.tap { renaming = true }.padding(vertical = 6.dp), Dim)
                     Label(
                         if (folder.cover == null) "Poner foto" else "Foto",
-                        Modifier.clickable { if (folder.cover == null) pickPhoto() else photoMenu = true }
+                        Modifier.tap { if (folder.cover == null) pickPhoto() else photoMenu = true }
                             .padding(vertical = 6.dp),
                         Dim,
                     )
@@ -248,13 +263,15 @@ fun FolderDetail(
             }
         }
 
-        itemsIndexed(entries, key = { _, e -> "${e.first}-${e.second.id}" }) { pos, (storedIndex, song) ->
+        itemsIndexed(entries, key = { _, e -> e.second.id }) { pos, (storedIndex, song) ->
             val current = ui.now?.id == song.id.toString()
+            val pad by animateDpAsState(if (editing) 6.dp else 12.dp, tween(300, easing = EaseOut), label = "pad")
+          Column(Modifier.animateItem(placementSpec = tween(320, easing = EaseOut))) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !editing) { onPlay(playable, pos) }
-                    .padding(vertical = if (editing) 6.dp else 12.dp),
+                    .tap(enabled = !editing) { onPlay(playable, pos) }
+                    .padding(vertical = pad),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.width(38.dp)) {
@@ -265,24 +282,36 @@ fun FolderDetail(
                     T(song.title, 18.sp, italic = current)
                     T(song.artist, 13.sp, Dim)
                 }
-                if (editing) {
-                    IconBox(enabled = pos > 0, onClick = {
-                        store.move(folder.id, storedIndex, entries[pos - 1].first)
-                    }) { ArrowGlyph(up = true, color = it) }
-                    IconBox(enabled = pos < entries.lastIndex, onClick = {
-                        store.move(folder.id, storedIndex, entries[pos + 1].first)
-                    }) { ArrowGlyph(up = false, color = it) }
-                    IconBox(onClick = { store.removeAt(folder.id, storedIndex) }) { CrossGlyph(color = it) }
-                } else {
+                AnimatedVisibility(
+                    visible = editing,
+                    enter = expandHorizontally(tween(320, easing = EaseOut)) + fadeIn(tween(260, delayMillis = 80)),
+                    exit = shrinkHorizontally(tween(260, easing = EaseInOut)) + fadeOut(tween(140)),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBox(enabled = pos > 0, onClick = {
+                            store.move(folder.id, storedIndex, entries[pos - 1].first)
+                        }) { ArrowGlyph(up = true, color = it) }
+                        IconBox(enabled = pos < entries.lastIndex, onClick = {
+                            store.move(folder.id, storedIndex, entries[pos + 1].first)
+                        }) { ArrowGlyph(up = false, color = it) }
+                        IconBox(onClick = { store.removeAt(folder.id, storedIndex) }) { CrossGlyph(color = it) }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = !editing,
+                    enter = fadeIn(tween(260, delayMillis = 100)),
+                    exit = fadeOut(tween(120)),
+                ) {
                     T(formatTime(song.durationMs), 13.sp, Dim, modifier = Modifier.padding(start = 12.dp))
                 }
             }
             Hairline()
+          }
         }
 
         if (editing) {
-            item {
-                Column(Modifier.padding(vertical = 28.dp)) {
+            item(key = "eliminar") {
+                Column(Modifier.animateItem().padding(vertical = 28.dp)) {
                     RectButton("Eliminar carpeta") { confirmDelete = true }
                 }
             }
@@ -336,7 +365,7 @@ private fun IconBox(
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     Box(
-        Modifier.size(44.dp).clickable(enabled = enabled, onClick = onClick),
+        Modifier.size(44.dp).tap(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(12.dp)) { content(if (enabled) White else Faint.copy(alpha = 0.12f)) }
@@ -387,7 +416,7 @@ fun SongPicker(
         Column(Modifier.padding(horizontal = 24.dp)) {
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Label("Cancelar", Modifier.clickable(onClick = onCancel).padding(vertical = 8.dp), Dim)
+                Label("Cancelar", Modifier.tap(onClick = onCancel).padding(vertical = 8.dp), Dim)
                 Spacer(Modifier.weight(1f))
                 Label("${picked.size} elegidas", color = Faint)
             }
@@ -405,19 +434,19 @@ fun SongPicker(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = !inFolder) {
+                        .tap(enabled = !inFolder) {
                             picked = if (order >= 0) picked - song.id else picked + song.id
                         }
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val fill by animateFloatAsState(if (order >= 0) 1f else 0f, tween(240, easing = EaseOut), label = "chk")
                     Box(
-                        Modifier.size(22.dp)
-                            .border(1.dp, if (inFolder) Faint else White)
-                            .background(if (order >= 0) White else Black),
+                        Modifier.size(22.dp).border(1.dp, if (inFolder) Faint else White),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (order >= 0) T("${order + 1}", 11.sp, Black)
+                        Box(Modifier.matchParentSize().graphicsLayer { scaleX = fill; scaleY = fill }.background(White))
+                        if (order >= 0) T("${order + 1}", 11.sp, Black, modifier = Modifier.graphicsLayer { alpha = fill })
                     }
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
@@ -451,9 +480,9 @@ private fun Panel(onDismiss: () -> Unit, content: @Composable () -> Unit) {
                 .padding(horizontal = 28.dp)
                 .fillMaxWidth()
                 .background(Black)
-                .border(1.dp, White)
+                .drawnBorder()
                 .padding(22.dp)
-        ) { content() }
+        ) { Box(Modifier.enter(120, offsetDp = 8f, durationMs = 420)) { content() } }
     }
 }
 
@@ -524,7 +553,7 @@ fun ChoiceDialog(
             Spacer(Modifier.height(12.dp))
             LazyColumn(Modifier.heightIn(max = 360.dp)) {
                 itemsIndexed(options) { i, o ->
-                    T(o, 18.sp, modifier = Modifier.fillMaxWidth().clickable { onPick(i) }.padding(vertical = 12.dp))
+                    T(o, 18.sp, modifier = Modifier.fillMaxWidth().tap { onPick(i) }.padding(vertical = 12.dp))
                     if (i < options.lastIndex) Hairline()
                 }
             }

@@ -2,9 +2,27 @@ package com.cogito.musica.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -81,49 +99,70 @@ fun PlayerScreen(
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Label("Cerrar", Modifier.clickable(onClick = onClose).padding(vertical = 10.dp), Dim)
+            Label("Cerrar", Modifier.tap(onClick = onClose).padding(vertical = 10.dp), Dim)
             Spacer(Modifier.weight(1f))
-            Label("Ecualizador", Modifier.clickable { showEq = true }.padding(vertical = 10.dp), Dim)
+            Label("Ecualizador", Modifier.tap { showEq = true }.padding(vertical = 10.dp), Dim)
             Spacer(Modifier.weight(1f))
-            Label(mode.label, Modifier.clickable { modeIndex++ }.padding(vertical = 10.dp), Dim)
+            Label(mode.label, Modifier.tap { modeIndex++ }.padding(vertical = 10.dp), Dim)
         }
 
         Spacer(Modifier.height(12.dp))
 
-        if (mode == VizMode.LYRICS) {
-            LyricsPanel(
-                lyrics = lyrics,
-                position = ui.position,
-                duration = ui.duration,
-                onSave = onSaveLyrics,
-                onDelete = onDeleteLyrics,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            )
-        } else
-        Box(
-            Modifier.fillMaxWidth().weight(1f).clickable { if (hasMic) modeIndex++ else onRequestMic() },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (hasMic) {
-                BigVisualizer(viz, frame, mode, Modifier.fillMaxSize())
+        Crossfade(
+            targetState = mode,
+            animationSpec = tween(420, easing = EaseInOut),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            label = "mode",
+        ) { m ->
+            if (m == VizMode.LYRICS) {
+                LyricsPanel(
+                    lyrics = lyrics,
+                    position = ui.position,
+                    duration = ui.duration,
+                    onSave = onSaveLyrics,
+                    onDelete = onDeleteLyrics,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    T(
-                        "Las animaciones necesitan el permiso de audio.\nNo se graba ni se envía nada.",
-                        16.sp, Dim, italic = true, maxLines = 4, align = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    RectButton("Activar animaciones", onClick = onRequestMic)
+                Box(
+                    Modifier.fillMaxSize().tap { if (hasMic) modeIndex++ else onRequestMic() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (hasMic) {
+                        BigVisualizer(viz, frame, m, Modifier.fillMaxSize())
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            T(
+                                "Las animaciones necesitan el permiso de audio.\nNo se graba ni se envía nada.",
+                                16.sp, Dim, italic = true, maxLines = 4, align = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            RectButton("Activar animaciones", onClick = onRequestMic)
+                        }
+                    }
                 }
             }
         }
 
         Spacer(Modifier.height(24.dp))
 
-        T(now?.title ?: "", 30.sp, italic = true, maxLines = 2)
-        Spacer(Modifier.height(6.dp))
-        T(now?.artist ?: "", 17.sp, Dim)
-        if (!now?.album.isNullOrEmpty()) T(now!!.album, 14.sp, Faint, italic = true)
+        AnimatedContent(
+            targetState = now,
+            contentKey = { it?.id },
+            transitionSpec = {
+                (slideInVertically(tween(460, easing = EaseOut)) { h -> h / 3 } + fadeIn(tween(380, delayMillis = 60)))
+                    .togetherWith(slideOutVertically(tween(260, easing = EaseInOut)) { h -> -h / 5 } + fadeOut(tween(180)))
+                    .using(SizeTransform(clip = false))
+            },
+            label = "title",
+        ) { n ->
+            Column(Modifier.fillMaxWidth()) {
+                T(n?.title ?: "", 30.sp, italic = true, maxLines = 2)
+                Spacer(Modifier.height(6.dp))
+                T(n?.artist ?: "", 17.sp, Dim)
+                if (!n?.album.isNullOrEmpty()) T(n!!.album, 14.sp, Faint, italic = true)
+            }
+        }
 
         Spacer(Modifier.height(14.dp))
         // Línea que late con los graves
@@ -143,23 +182,19 @@ fun PlayerScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.width(76.dp).clickable(onClick = onShuffle).padding(vertical = 12.dp)) {
-                Label("Aleat.", color = if (ui.shuffle) White else Faint)
+            Box(Modifier.width(76.dp).tap(onClick = onShuffle).padding(vertical = 12.dp)) {
+                val c by animateColorAsState(if (ui.shuffle) White else Faint, tween(300), label = "sh")
+                Label("Aleat.", color = c)
             }
-            Box(Modifier.size(52.dp).clickable(onClick = onPrev), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(52.dp).tap(onClick = onPrev), contentAlignment = Alignment.Center) {
                 SkipGlyph(false, Modifier.size(18.dp))
             }
-            Box(
-                Modifier.size(72.dp).border(1.dp, White).clickable(onClick = onToggle),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlayPauseGlyph(ui.isPlaying, Modifier.size(22.dp))
-            }
-            Box(Modifier.size(52.dp).clickable(onClick = onNext), contentAlignment = Alignment.Center) {
+            BigPlayButton(ui.isPlaying, onToggle)
+            Box(Modifier.size(52.dp).tap(onClick = onNext), contentAlignment = Alignment.Center) {
                 SkipGlyph(true, Modifier.size(18.dp))
             }
             Box(
-                Modifier.width(76.dp).clickable(onClick = onRepeat).padding(vertical = 12.dp),
+                Modifier.width(76.dp).tap(onClick = onRepeat).padding(vertical = 12.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
                 val (text, on) = when (ui.repeat) {
@@ -167,11 +202,41 @@ fun PlayerScreen(
                     Player.REPEAT_MODE_ONE -> "Rep. una" to true
                     else -> "Repetir" to false
                 }
-                Label(text, color = if (on) White else Faint)
+                val c by animateColorAsState(if (on) White else Faint, tween(300), label = "rp")
+                AnimatedContent(text, transitionSpec = { riseTransition() }, label = "rep") { tx -> Label(tx, color = c) }
             }
         }
         Spacer(Modifier.height(12.dp))
     }
-    if (showEq) EqualizerScreen(onBack = { showEq = false })
+    AnimatedVisibility(
+        visible = showEq,
+        enter = slideInHorizontally(tween(440, easing = EaseOut)) { it / 3 } + fadeIn(tween(300)),
+        exit = slideOutHorizontally(tween(300, easing = EaseInOut)) { it / 3 } + fadeOut(tween(200)),
+    ) {
+        EqualizerScreen(onBack = { showEq = false })
+    }
+    }
+}
+
+/** Botón cuadrado de play: el blanco crece desde el centro al apretarlo y el ícono se invierte. */
+@Composable
+private fun BigPlayButton(playing: Boolean, onToggle: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val p by animateFloatAsState(
+        if (pressed) 1f else 0f,
+        tween(if (pressed) 160 else 420, easing = EaseOut),
+        label = "play",
+    )
+    Box(
+        Modifier
+            .size(72.dp)
+            .graphicsLayer { val k = 0.06f * p; scaleX = 1f - k; scaleY = 1f - k }
+            .border(1.dp, White)
+            .clickable(interactionSource = source, indication = null, onClick = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.matchParentSize().graphicsLayer { scaleX = p; scaleY = p }.background(White))
+        PlayPauseGlyph(playing, Modifier.size(22.dp), color = lerp(White, Black, p))
     }
 }

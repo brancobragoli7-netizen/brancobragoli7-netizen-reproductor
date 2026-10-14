@@ -4,6 +4,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -95,45 +103,85 @@ fun Hairline(modifier: Modifier = Modifier, color: Color = Faint) {
     Box(modifier.fillMaxWidth().height(1.dp).background(color))
 }
 
-/** Botón rectangular con borde fino; invertido (blanco) cuando está activo. */
+/**
+ * Botón rectangular con borde fino; lleno (blanco) cuando está activo.
+ * Al apretarlo, el color contrario barre el botón de izquierda a derecha.
+ */
 @Composable
 fun RectButton(text: String, modifier: Modifier = Modifier, filled: Boolean = false, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val wipe by animateFloatAsState(
+        if (pressed) 1f else 0f,
+        tween(if (pressed) 200 else 460, easing = EaseOut),
+        label = "wipe",
+    )
+    val fill by animateFloatAsState(if (filled) 1f else 0f, tween(340, easing = EaseOut), label = "fill")
+    val bg = lerp(Black, White, fill)
+    val fg = lerp(White, Black, fill)
     Box(
         modifier
+            .graphicsLayer {
+                val k = 0.03f * wipe
+                scaleX = 1f - k
+                scaleY = 1f - k
+            }
             .border(1.dp, White)
-            .background(if (filled) White else Black)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Label(text, color = if (filled) Black else White, size = 12.sp)
+        Box(Modifier.background(bg).padding(horizontal = 18.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+            Label(text, color = fg, size = 12.sp)
+        }
+        if (wipe > 0f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .drawWithContent { clipRect(right = size.width * wipe) { this@drawWithContent.drawContent() } }
+                    .background(fg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Label(text, color = bg, size = 12.sp)
+            }
+        }
     }
 }
 
-/** Pestaña de texto subrayada cuando está activa. */
+/** Pestaña de texto: el subrayado crece desde la izquierda al activarse. */
 @Composable
 fun TextTab(text: String, active: Boolean, onClick: () -> Unit) {
-    Column(Modifier.width(IntrinsicSize.Max).clickable(onClick = onClick).padding(vertical = 8.dp)) {
-        Label(text, color = if (active) White else Faint, size = 12.sp)
+    val p by animateFloatAsState(if (active) 1f else 0f, tween(380, easing = EaseOut), label = "tab")
+    Column(Modifier.width(IntrinsicSize.Max).tap(onClick = onClick).padding(vertical = 8.dp)) {
+        Label(text, color = lerp(Faint, White, p), size = 12.sp)
         Spacer(Modifier.height(6.dp))
-        Box(Modifier.height(1.dp).fillMaxWidth().background(if (active) White else Color.Transparent))
+        Box(Modifier.height(1.dp).fillMaxWidth(p).background(White))
     }
 }
 
+/** El triángulo de play se parte en dos y se convierte en las barras de pausa. */
 @Composable
 fun PlayPauseGlyph(playing: Boolean, modifier: Modifier = Modifier, color: Color = White) {
+    val t by animateFloatAsState(if (playing) 1f else 0f, tween(280, easing = EaseInOut), label = "pp")
     Canvas(modifier) {
         val w = size.width
         val h = size.height
-        if (playing) {
-            val bw = w * 0.28f
-            drawRect(color, Offset(w * 0.12f, 0f), Size(bw, h))
-            drawRect(color, Offset(w * 0.60f, 0f), Size(bw, h))
-        } else {
+        val a = w * 0.12f
+        val b = w * 0.98f
+        val m = (a + b) / 2f
+        fun l(x: Float, y: Float) = x + (y - x) * t
+        // Cuatro esquinas de cada mitad: arriba-izq, arriba-der, abajo-der, abajo-izq
+        val left = listOf(
+            Offset(l(a, w * 0.12f), 0f), Offset(l(m, w * 0.40f), l(h / 4f, 0f)),
+            Offset(l(m, w * 0.40f), l(3f * h / 4f, h)), Offset(l(a, w * 0.12f), h),
+        )
+        val right = listOf(
+            Offset(l(m, w * 0.60f), l(h / 4f, 0f)), Offset(l(b, w * 0.88f), l(h / 2f, 0f)),
+            Offset(l(b, w * 0.88f), l(h / 2f, h)), Offset(l(m, w * 0.60f), l(3f * h / 4f, h)),
+        )
+        for (q in listOf(left, right)) {
             val p = Path().apply {
-                moveTo(w * 0.12f, 0f)
-                lineTo(w * 0.98f, h / 2f)
-                lineTo(w * 0.12f, h)
+                moveTo(q[0].x, q[0].y)
+                for (k in 1..3) lineTo(q[k].x, q[k].y)
                 close()
             }
             drawPath(p, color)
@@ -168,6 +216,7 @@ fun formatTime(ms: Long): String {
 @Composable
 fun SeekBar(position: Long, duration: Long, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
     var dragFrac by remember { mutableStateOf<Float?>(null) }
+    val thumb by animateFloatAsState(if (dragFrac != null) 15f else 9f, tween(220, easing = EaseOut), label = "thumb")
     val frac = dragFrac ?: if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
 
     Column(modifier.fillMaxWidth()) {
@@ -197,7 +246,7 @@ fun SeekBar(position: Long, duration: Long, onSeek: (Long) -> Unit, modifier: Mo
             val w = size.width
             drawLine(Faint, Offset(0f, y), Offset(w, y), 1.dp.toPx())
             drawLine(White, Offset(0f, y), Offset(w * frac, y), 1.5.dp.toPx())
-            val t = 9.dp.toPx()
+            val t = thumb.dp.toPx()
             drawRect(White, Offset((w * frac - t / 2f).coerceIn(0f, w - t), y - t / 2f), Size(t, t))
         }
         Row(Modifier.fillMaxWidth()) {

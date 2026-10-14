@@ -4,9 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -66,7 +70,7 @@ fun EqualizerScreen(onBack: () -> Unit) {
             .pointerInput(Unit) { detectTapGestures { } }
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
-        Label("← Volver", Modifier.clickable(onClick = onBack).padding(vertical = 10.dp), Dim)
+        Label("← Volver", Modifier.tap(onClick = onBack).padding(vertical = 10.dp), Dim)
         Spacer(Modifier.height(10.dp))
         T("Ecualizador", 40.sp, italic = true)
         Spacer(Modifier.height(18.dp))
@@ -103,14 +107,14 @@ fun EqualizerScreen(onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth().weight(1f)) {
             st.bands.forEachIndexed { i, band ->
                 Column(
-                    Modifier.weight(1f).fillMaxHeight(),
+                    Modifier.weight(1f).fillMaxHeight().enter(80 + i * 50, offsetDp = 24f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     val db = band.level / 100f
                     T((if (db > 0) "+" else "") + "%.0f".format(db), 13.sp, White.copy(alpha = alpha))
                     Spacer(Modifier.height(8.dp))
                     VerticalSlider(
-                        value = (band.level - st.min).toFloat() / (st.max - st.min),
+                        target = (band.level - st.min).toFloat() / (st.max - st.min),
                         alpha = alpha,
                         modifier = Modifier.weight(1f).width(40.dp),
                     ) { v ->
@@ -144,8 +148,9 @@ private fun freqLabel(hz: Int): String =
     } else "$hz"
 
 @Composable
-private fun VerticalSlider(value: Float, alpha: Float, modifier: Modifier, onChange: (Float) -> Unit) {
+private fun VerticalSlider(target: Float, alpha: Float, modifier: Modifier, onChange: (Float) -> Unit) {
     val cb by rememberUpdatedState(onChange)
+    val value by animateFloatAsState(target, spring(stiffness = Spring.StiffnessMedium), label = "eq")
     Canvas(
         modifier
             .pointerInput(Unit) {
@@ -167,8 +172,9 @@ private fun VerticalSlider(value: Float, alpha: Float, modifier: Modifier, onCha
 }
 
 @Composable
-private fun HorizontalSlider(value: Float, alpha: Float, onChange: (Float) -> Unit) {
+private fun HorizontalSlider(target: Float, alpha: Float, onChange: (Float) -> Unit) {
     val cb by rememberUpdatedState(onChange)
+    val value by animateFloatAsState(target, spring(stiffness = Spring.StiffnessMedium), label = "bass")
     Canvas(
         Modifier
             .fillMaxWidth()
@@ -238,14 +244,19 @@ fun LyricsPanel(
                     item { Spacer(Modifier.height(24.dp)) }
                     itemsIndexed(lyrics.lines) { i, line ->
                         val active = i == current
-                        T(
-                            line.text.ifEmpty { "·" },
-                            if (active) 22.sp else 18.sp,
+                        val color by animateColorAsState(
                             when {
                                 active -> White
                                 i < current -> Faint
                                 else -> Dim
                             },
+                            tween(420), label = "lc",
+                        )
+                        val size by animateFloatAsState(if (active) 22f else 18f, tween(420, easing = EaseOut), label = "ls")
+                        T(
+                            line.text.ifEmpty { "·" },
+                            size.sp,
+                            color,
                             italic = active,
                             maxLines = 4,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -272,7 +283,7 @@ fun LyricsPanel(
                 Modifier
                     .align(Alignment.BottomEnd)
                     .background(Black)
-                    .clickable { menu = true }
+                    .tap { menu = true }
                     .padding(start = 12.dp, top = 8.dp, bottom = 4.dp),
                 Faint,
             )
@@ -315,7 +326,7 @@ private fun PasteDialog(onSave: (String) -> Unit, onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
                 .background(Black)
-                .border(1.dp, White)
+                .drawnBorder()
                 .padding(20.dp)
         ) {
             T("Pegar letra", 22.sp, italic = true)

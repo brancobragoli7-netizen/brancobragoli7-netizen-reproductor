@@ -53,6 +53,10 @@ import com.cogito.musica.ui.PlayerScreen
 import com.cogito.musica.ui.RectButton
 import com.cogito.musica.ui.T
 import com.cogito.musica.ui.rememberVizFrame
+import com.cogito.musica.ui.EaseOut
+import com.cogito.musica.ui.EaseInOut
+import com.cogito.musica.ui.enter
+import androidx.compose.animation.core.tween
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -161,8 +165,8 @@ fun App() {
 
             AnimatedVisibility(
                 visible = expanded && ui.now != null,
-                enter = slideInVertically { it / 3 } + fadeIn(),
-                exit = slideOutVertically { it / 3 } + fadeOut(),
+                enter = slideInVertically(tween(480, easing = EaseOut)) { it / 4 } + fadeIn(tween(320)),
+                exit = slideOutVertically(tween(340, easing = EaseInOut)) { it / 4 } + fadeOut(tween(240)),
             ) {
                 PlayerScreen(
                     ui = ui,
@@ -191,19 +195,19 @@ private fun Intro(askedOnce: Boolean, onAllow: () -> Unit) {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxSize().padding(32.dp)) {
         Spacer(Modifier.weight(1f))
-        T("Música", 60.sp, italic = true)
+        T("Música", 60.sp, italic = true, modifier = Modifier.enter(100, offsetDp = 22f, durationMs = 800))
         Spacer(Modifier.height(20.dp))
         T(
             "Un reproductor para la música guardada en este teléfono. Funciona sin internet.",
-            19.sp, Dim, maxLines = 5,
+            19.sp, Dim, maxLines = 5, modifier = Modifier.enter(320),
         )
         Spacer(Modifier.height(14.dp))
         T(
             "El permiso de audio se usa solo para que las animaciones sigan el ritmo de lo que suena en esta app. No se graba ni se envía nada.",
-            14.sp, Faint, maxLines = 6,
+            14.sp, Faint, maxLines = 6, modifier = Modifier.enter(460),
         )
         Spacer(Modifier.height(36.dp))
-        RectButton("Permitir acceso", filled = true, onClick = onAllow)
+        RectButton("Permitir acceso", modifier = Modifier.enter(600), filled = true, onClick = onAllow)
         if (askedOnce) {
             Spacer(Modifier.height(24.dp))
             T(
