@@ -24,7 +24,7 @@ data class Song(
     /** Texto para buscar sin importar mayúsculas ni tildes. */
     val searchKey: String by lazy { normalize("$title $artist $album") }
 
-    fun toMediaItem(): MediaItem = MediaItem.Builder()
+    fun toMediaItem(artwork: Uri? = null): MediaItem = MediaItem.Builder()
         .setMediaId(id.toString())
         .setUri(uri)
         .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
@@ -33,6 +33,7 @@ data class Song(
                 .setTitle(title)
                 .setArtist(artist)
                 .setAlbumTitle(album)
+                .setArtworkUri(artwork ?: artUri(title, artist))
                 .build()
         )
         .build()

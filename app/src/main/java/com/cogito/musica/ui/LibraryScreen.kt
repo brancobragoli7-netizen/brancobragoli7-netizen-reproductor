@@ -58,6 +58,8 @@ fun LibraryScreen(
     frame: State<Long>,
     onPlay: (List<Song>, Int) -> Unit,
     onShuffle: (List<Song>) -> Unit,
+    onPlayCover: (List<Song>, Int, java.io.File?) -> Unit,
+    onShuffleCover: (List<Song>, java.io.File?) -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
     onExpand: () -> Unit,
@@ -114,8 +116,8 @@ fun LibraryScreen(
                 viz = viz,
                 frame = frame,
                 onBack = { openFolderId = null },
-                onPlay = onPlay,
-                onShuffle = onShuffle,
+                onPlay = { l, i -> onPlayCover(l, i, store.coverFile(openFolder)) },
+                onShuffle = { l -> onShuffleCover(l, store.coverFile(openFolder)) },
                 onAddSongs = { pickerFor = openFolder.id },
             )
         }

@@ -118,6 +118,7 @@ fun App() {
     val loaded by vm.loaded.collectAsState()
     val ui by vm.ui.collectAsState()
     val folders by vm.folderStore.folders.collectAsState()
+    val lyrics by vm.lyrics.collectAsState()
     val sessionId by AudioSessionHolder.id.collectAsState()
 
     val viz = remember { AudioViz() }
@@ -151,6 +152,8 @@ fun App() {
                 frame = frame,
                 onPlay = { list, i -> vm.play(list, i) },
                 onShuffle = { list -> vm.shuffleAll(list); expanded = true },
+                onPlayCover = { list, i, cover -> vm.play(list, i, cover = cover) },
+                onShuffleCover = { list, cover -> vm.shuffleAll(list, cover); expanded = true },
                 onToggle = vm::togglePlay,
                 onNext = vm::next,
                 onExpand = { expanded = true },
@@ -174,6 +177,9 @@ fun App() {
                     onSeek = vm::seekTo,
                     onShuffle = vm::toggleShuffle,
                     onRepeat = vm::cycleRepeat,
+                    lyrics = lyrics,
+                    onSaveLyrics = vm::saveLyrics,
+                    onDeleteLyrics = vm::deleteLyrics,
                 )
             }
         }

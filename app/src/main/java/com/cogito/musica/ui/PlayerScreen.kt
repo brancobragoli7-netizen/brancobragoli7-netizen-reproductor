@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import com.cogito.musica.AudioViz
 import com.cogito.musica.PlayerUi
+import com.cogito.musica.Lyrics
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 
 @Composable
 fun PlayerScreen(
@@ -49,12 +52,17 @@ fun PlayerScreen(
     onSeek: (Long) -> Unit,
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
+    lyrics: Lyrics?,
+    onSaveLyrics: (String) -> Unit,
+    onDeleteLyrics: () -> Unit,
 ) {
     BackHandler(onBack = onClose)
     var modeIndex by rememberSaveable { mutableIntStateOf(0) }
     val mode = VizMode.entries[modeIndex % VizMode.entries.size]
     val now = ui.now
+    var showEq by remember { mutableStateOf(false) }
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -75,13 +83,23 @@ fun PlayerScreen(
         ) {
             Label("Cerrar", Modifier.clickable(onClick = onClose).padding(vertical = 10.dp), Dim)
             Spacer(Modifier.weight(1f))
-            Label("Reproduciendo", color = Faint)
+            Label("Ecualizador", Modifier.clickable { showEq = true }.padding(vertical = 10.dp), Dim)
             Spacer(Modifier.weight(1f))
             Label(mode.label, Modifier.clickable { modeIndex++ }.padding(vertical = 10.dp), Dim)
         }
 
         Spacer(Modifier.height(12.dp))
 
+        if (mode == VizMode.LYRICS) {
+            LyricsPanel(
+                lyrics = lyrics,
+                position = ui.position,
+                duration = ui.duration,
+                onSave = onSaveLyrics,
+                onDelete = onDeleteLyrics,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        } else
         Box(
             Modifier.fillMaxWidth().weight(1f).clickable { if (hasMic) modeIndex++ else onRequestMic() },
             contentAlignment = Alignment.Center,
@@ -153,5 +171,7 @@ fun PlayerScreen(
             }
         }
         Spacer(Modifier.height(12.dp))
+    }
+    if (showEq) EqualizerScreen(onBack = { showEq = false })
     }
 }

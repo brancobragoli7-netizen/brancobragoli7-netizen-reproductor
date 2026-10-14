@@ -21,7 +21,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-enum class VizMode(val label: String) { BARS("Barras"), WAVE("Onda"), RING("Anillo") }
+enum class VizMode(val label: String) { BARS("Barras"), WAVE("Onda"), RING("Anillo"), LYRICS("Letra") }
 
 /** Avanza la animación en cada cuadro de pantalla. Leer `.value` dentro de un Canvas lo redibuja. */
 @Composable
@@ -47,6 +47,7 @@ fun BigVisualizer(viz: AudioViz, frame: State<Long>, mode: VizMode, modifier: Mo
         VizMode.BARS -> BarsViz(viz, frame, modifier)
         VizMode.WAVE -> WaveViz(viz, frame, modifier)
         VizMode.RING -> RingViz(viz, frame, modifier)
+        VizMode.LYRICS -> Unit
     }
 }
 

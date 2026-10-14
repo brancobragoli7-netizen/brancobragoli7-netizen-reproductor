@@ -28,6 +28,14 @@ En la pestaña **Carpetas** podés crear carpetas propias, ponerles nombre y fot
 elegir sus canciones y cambiar el orden con *Editar* (flechas). También podés mantener
 apretada cualquier canción para sumarla a una carpeta.
 
+## Letra, ecualizador y widget
+
+- **Letra:** en el reproductor, tocá el modo arriba a la derecha hasta llegar a *Letra*.
+  Se lee la letra guardada dentro del archivo (MP3 y FLAC) o la que agregues vos
+  (archivo .lrc o .txt, o texto pegado). Con un .lrc la letra sigue la canción.
+- **Ecualizador:** en el reproductor, tocá *Ecualizador*.
+- **Widget:** mantené apretado el fondo de pantalla → Widgets → Música · Letra.
+
 ## Permisos
 
 - **Música y audio:** para encontrar tus canciones.

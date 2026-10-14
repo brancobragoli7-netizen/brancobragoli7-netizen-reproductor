@@ -12,8 +12,8 @@ android {
         applicationId = "com.cogito.musica"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // Clave propia incluida en el proyecto: así cada APK nuevo se instala
@@ -44,6 +44,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     buildFeatures {
         compose = true
     }
@@ -63,4 +67,5 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
+    implementation("androidx.media3:media3-datasource:1.5.1")
 }

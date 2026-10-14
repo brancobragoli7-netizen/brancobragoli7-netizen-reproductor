@@ -10,6 +10,12 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collectLatest
+import android.net.Uri
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -46,6 +52,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** Carpetas propias del usuario. */
     val folderStore = FolderStore(app, viewModelScope)
 
+    /** Letra de la canción que suena (null si no tiene). */
+    private val _lyrics = MutableStateFlow<Lyrics?>(null)
+    val lyrics = _lyrics.asStateFlow()
+
     private var controller: MediaController? = null
 
     private val future = MediaController.Builder(
@@ -63,6 +73,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             c.addListener(listener)
             sync()
         }, ContextCompat.getMainExecutor(app))
+
+        // Carga la letra cuando cambia la canción o se edita
+        viewModelScope.launch {
+            combine(
+                _ui.map { it.now?.id }.distinctUntilChanged(),
+                LyricsRepository.version,
+                _songs,
+            ) { id, _, list -> id to list }.collectLatest { (id, list) ->
+                _lyrics.value = null
+                if (id == null) return@collectLatest
+                val song = id.toLongOrNull()?.let { sid -> list.find { it.id == sid } }
+                _lyrics.value = LyricsRepository.load(getApplication(), id, song?.uri)
+            }
+        }
 
         // Actualiza la barra de progreso mientras suena
         viewModelScope.launch {
@@ -101,18 +125,29 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun play(list: List<Song>, index: Int, shuffle: Boolean = false) {
+    fun play(list: List<Song>, index: Int, shuffle: Boolean = false, cover: File? = null) {
         val c = controller ?: return
         if (list.isEmpty()) return
         c.shuffleModeEnabled = shuffle
-        c.setMediaItems(list.map { it.toMediaItem() }, index.coerceIn(0, list.lastIndex), 0L)
+        val art = cover?.takeIf { it.exists() }?.let { Uri.fromFile(it) }
+        c.setMediaItems(list.map { it.toMediaItem(art) }, index.coerceIn(0, list.lastIndex), 0L)
         c.prepare()
         c.play()
     }
 
-    fun shuffleAll(list: List<Song>) {
+    fun shuffleAll(list: List<Song>, cover: File? = null) {
         if (list.isEmpty()) return
-        play(list, Random.nextInt(list.size), shuffle = true)
+        play(list, Random.nextInt(list.size), shuffle = true, cover = cover)
+    }
+
+    fun saveLyrics(text: String) {
+        val id = _ui.value.now?.id ?: return
+        LyricsRepository.save(getApplication(), id, text)
+    }
+
+    fun deleteLyrics() {
+        val id = _ui.value.now?.id ?: return
+        LyricsRepository.delete(getApplication(), id)
     }
 
     fun togglePlay() {
